@@ -1,7 +1,6 @@
 # genetic-function-plot
 Finds polynomial coefficients, using genetic algorithm, for an arbitrary order from a set of datapoints. And plots them real time. 
 
-![alt text](http://i.imgur.com/1JdHBlw.png "Example 1")
 <img src="http://i.imgur.com/1JdHBlw.png" width="500">
 
 ## To run:
