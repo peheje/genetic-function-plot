@@ -1,267 +1,4 @@
 (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
-// Peter Helstrup Jensen https://github.com/peheje
-
-const ui = require('./ui');
-const rd = require('./readDOM'), ge = rd.getElement, gi = rd.getInput, gin = rd.getInputNumber, gij = rd.getInputJson, si = rd.setInput;
-const gen = require('./genetics_poly');
-const random = require('./random');
-
-const PR_MUTATE = 0.25;         // Chance one coefficient-set genetics_poly.mutates 1 of its coefficients
-const MUTATE_INTENSITY = 0.2;        // How much mutation allowed in either direction, but it is decreased with best error
-const MAX_CROSSOVER = 0.1;      // In crossing over, how much potential mix is a son of also his mother.  
-const POOL_REDUCTION = 0.005;
-const MAX_POOL_REDUCTION = 0.5;
-const DELAY_MS = 0;
-
-const ORIG_POOL_SIZE = gin("poolsize");
-console.log("ORIG_POOL_SIZE", ORIG_POOL_SIZE);
-ui.activate(initLoop, mainLoop);
-
-function initLoop({ order: N, poolsize: PS, minguess: min, maxguess: max }) {
-  let pool = [];
-  for (let i = 0; i < PS; i++) {
-    pool.push(gen.seed(N + 1, min, max));
-  }
-  return pool;
-}
-
-function mainLoop(i, order, data, pool) {
-  setTimeout(() => {
-    let best = gen.findBest(pool, data).slice();
-    const movingMutate = Math.max(0.1, MUTATE_INTENSITY/gen.fitness(best, data));
-
-    if (i % gin("updrate") === 0) {
-      console.log("movingMutate", movingMutate);
-      ui.draw(best, i);
-    }
-    if (i % 2 === 0) {
-      let stop = ge("stop");
-      if (stop.checked) {
-        stop.checked = false;
-        return;
-      }
-    }
-
-    let newPool = [];
-
-    newPool.push(best);
-    while (newPool.length < pool.length * (1 - POOL_REDUCTION) || newPool.length < ORIG_POOL_SIZE * MAX_POOL_REDUCTION) {
-      let parents = gen.resampleTwo(pool, data);
-      let p1 = parents[0].slice(); // Remember to slice / cpy, as we want to be able to re-sample original values
-      let p2 = parents[1].slice();
-
-      let children = gen.crossover(p1, p2);
-      let c1 = children[0];
-      let c2 = children[1];
-      if (Math.random() < PR_MUTATE) {
-        c1 = gen.mutate(c1, movingMutate);
-      }
-      if (Math.random() < PR_MUTATE) {
-        c2 = gen.mutate(c2, movingMutate);
-      }
-      newPool.push(c1, c2);
-    }
-    pool = newPool;
-
-    // Call loop again
-    if (--i) {
-      mainLoop(i, order, data, pool);
-    }
-  }, DELAY_MS);
-}
-},{"./genetics_poly":3,"./random":6,"./readDOM":7,"./ui":8}],2:[function(require,module,exports){
-Array.prototype.sum = function () {
-  let s = 0;
-  for (let i = 0; i < this.length; i++) {
-    s += this[i];
-  }
-  return s;
-};
-},{}],3:[function(require,module,exports){
-require("./extensions");
-const bs = require("binary-search");
-const random = require('./random');
-const PD = require("probability-distributions");
-
-function evalPolynomial(coefficients, x) {
-  // "a0 + a1*x + a2*x^2 .. an*x^n" , coefficients go from a0, a1 ... an
-  const terms = coefficients.length;
-  let sum = 0;
-  let p = 1;
-  for (let i = 0; i < terms; i++) {
-    sum += coefficients[i] * p;
-    p *= x; // Multiply p with x, so it continually is x^1 .. x^2 .. x^3 etc. Faster than Math.pow, not as accurate.
-    //sum += coefficients[i] * Math.pow(x, i);
-  }
-  return sum;
-}
-
-function seed(n, min, max) {
-  let seeds = [];
-  for (let i = 0; i < n; i++) {
-    seeds.push(random.getRandomArbitrary(min, max));
-  }
-  return seeds;
-}
-
-function fitness(coefficients, data) {
-  // data assumed to be [[x1, y1], [x2, y2] .. [xn, yn]]
-  let sumSqErr = 0;
-  for (let i = 0; i < data.length; i++) {
-    const xy = data[i];
-    sumSqErr += Math.pow(evalPolynomial(coefficients, xy[0]) - xy[1], 2);
-  }
-  return 1 / sumSqErr;
-}
-
-function mutate(coefficients, delta) {
-  //const toMutate = random.getRandomInt(0, coefficients.length);
-  // This beta distribution favors closer to only 1 mutation. 
-  // http://statisticsblog.com/probability-distributions/#beta
-  const toMutate = Math.floor(PD.rbeta(1, 1, 3)[0] * coefficients.length) + 1;
-  //console.log("toMutate", toMutate);
-
-  if (toMutate > 1) {
-    // Only mutate a coefficient once
-    let idxs = [];
-    for (let i = 0; i < toMutate; i++) {
-      let candidate = 0;
-      do {
-        candidate = random.getRandomInt(0, coefficients.length);
-      } while (idxs.indexOf(candidate) !== -1);
-      idxs.push(candidate);
-    }
-    for (let i = 0; i < idxs.length; i++) {
-      const drift = random.getRandomArbitrary(-delta, delta);
-      coefficients[idxs[i]] += drift;
-    }
-  } else {
-    const drift = random.getRandomArbitrary(-delta, delta);
-    const idx = random.getRandomInt(0, coefficients.length);
-    coefficients[idx] += drift;
-  }
-  return coefficients;
-}
-
-function lerp(a, b, p) {
-  return a + (b - a) * p;
-}
-
-function crossover2(mom, dad, rate = 0.1) {
-  let son = [];
-  let daughter = [];
-  for (let i = 0; i < mom.length; i++) {
-    son[i] = dad[i] * rate + mom[i] * (1 - rate);
-    daughter[i] = mom[i] * rate + dad[i] * (1 - rate);
-  }
-  return [daughter, son];
-}
-
-function crossover(mom, dad, maxCrossover = 0.1) {
-  let son = [].concat(dad);
-  let daughter = [].concat(mom);
-
-  for (let i = 0; i < son.length; i++) {
-    const p1 = random.getRandomArbitrary(0, maxCrossover);
-    const p2 = random.getRandomArbitrary(0, maxCrossover);
-    son[i] = lerp(dad[i], mom[i], p1);
-    daughter[i] = lerp(mom[i], dad[i], p2);
-  }
-  return [daughter, son];
-}
-
-function resampleTwo(coefficientSets, data) {
-  const n = coefficientSets.length;
-  const w = [];
-  for (let i = 0; i < n; i++) {
-    const fit = fitness(coefficientSets[i], data);
-    w.push(fit);
-  }
-
-  // Binary resampling
-  let wheel = [];
-  let sum = 0;
-  for (let i = 0; i < w.length; i++) {
-    sum += w[i];
-    wheel.push(sum);
-  }
-
-  let pair = [];
-  for (let i = 0; i < 2; i++) {
-    const r = random.getRandomArbitrary(0, sum);
-    let idx = bs(wheel, r, (a, b) => a - b);
-    if (idx < 0) {
-      idx = -idx - 1;
-    }
-    pair.push(coefficientSets[idx]);
-  }
-
-  return pair;
-}
-
-function resampleTwo2(coefficientSets, data) {
-  // E.g. a 2 order coefficientSets would look like [[9, 2, 3], [5, -1, 6] ...]
-  const n = coefficientSets.length;
-  const w = [];
-  for (let i = 0; i < n; i++) {
-    const fit = fitness(coefficientSets[i], data);
-    w.push(fit);
-  }
-
-  // Beta resampling
-  let pair = [];
-  let index = random.getRandomInt(0, n);
-  let beta = 0;
-  let mw = w.reduce((a, b) => Math.max(a, b));
-  for (let i = 0; i < 2; i++) {
-    beta += Math.random() * 2 * mw;
-    while (beta > w[index]) {
-      beta -= w[index];
-      index = (index + 1) % n;
-    }
-    pair.push(coefficientSets[index]);
-  }
-
-  return pair;
-}
-
-function findBest(pool, DATA) {
-  let best_fit = -Number.MAX_VALUE;
-  let best_idx = -1;
-  for (let i = 0; i < pool.length; i++) {
-    let fit = fitness(pool[i], DATA);
-    if (fit > best_fit) {
-      best_fit = fit;
-      best_idx = i;
-    }
-  }
-  return pool[best_idx];
-}
-
-function coefficientsToEquation(coefficients) {
-  let str = "";
-  for (let i = 0; i < coefficients.length; i++) {
-    if (i === 0) {
-      str += coefficients[i].toFixed(4);
-    } else {
-      if (coefficients[i] > 0) {
-        str += "+";
-      }
-      str += coefficients[i].toFixed(4) + "*x^" + i;
-    }
-  }
-  return str;
-}
-
-exports.evalPolynomial = evalPolynomial;
-exports.seed = seed;
-exports.fitness = fitness;
-exports.mutate = mutate;
-exports.crossover = crossover;
-exports.resampleTwo = resampleTwo;
-exports.findBest = findBest;
-exports.coefficientsToEquation = coefficientsToEquation;
-},{"./extensions":2,"./random":6,"binary-search":4,"probability-distributions":5}],4:[function(require,module,exports){
 module.exports = function(haystack, needle, comparator, low, high) {
   var mid, cmp;
 
@@ -306,7 +43,7 @@ module.exports = function(haystack, needle, comparator, low, high) {
   return ~low;
 }
 
-},{}],5:[function(require,module,exports){
+},{}],2:[function(require,module,exports){
 /* ================================================================
  * probability-distributions by Matt Asher (me[at]mattasher.com)
  * Originally created for StatisticsBlog.com
@@ -1280,7 +1017,271 @@ module.exports = {
 // Always return a vector unless number is 1? This could be config option or put "1" at end of fcn to get 1 only
 // Separate out core random variate creation from number to create loop
 // TODO: To test out quality of randomness, stub in specific values for this.prng and make sure correct stuff is returned.
-},{"crypto":62}],6:[function(require,module,exports){
+},{"crypto":62}],3:[function(require,module,exports){
+// Peter Helstrup Jensen https://github.com/peheje
+
+const ui = require('./ui');
+const rd = require('./readDOM'), ge = rd.getElement, gi = rd.getInput, gin = rd.getInputNumber, gij = rd.getInputJson, si = rd.setInput;
+const gen = require('./genetics_poly');
+const random = require('./random');
+
+const PR_MUTATE = 0.25;         // Chance one coefficient-set genetics_poly.mutates 1 of its coefficients
+const MUTATE_INTENSITY = 0.2;        // How much mutation allowed in either direction, but it is decreased with best error
+const MAX_CROSSOVER = 0.1;      // In crossing over, how much potential mix is a son of also his mother.  
+const POOL_REDUCTION = 0.005;
+const MAX_POOL_REDUCTION = 0.5;
+const DELAY_MS = 0;
+
+const ORIG_POOL_SIZE = gin("poolsize");
+console.log("ORIG_POOL_SIZE", ORIG_POOL_SIZE);
+ui.activate(initLoop, mainLoop);
+
+function initLoop({ order: N, poolsize: PS, minguess: min, maxguess: max }) {
+  let pool = [];
+  for (let i = 0; i < PS; i++) {
+    pool.push(gen.seed(N + 1, min, max));
+  }
+  return pool;
+}
+
+function mainLoop(i, order, data, pool) {
+  setTimeout(() => {
+    let best = gen.findBest(pool, data).slice();
+    const movingMutate = Math.max(0.1, MUTATE_INTENSITY/gen.fitness(best, data));
+
+    if (i % gin("updrate") === 0) {
+      console.log("hue9");
+      console.log("movingMutate", movingMutate);
+      ui.draw(best, i);
+    }
+    if (i % 2 === 0) {
+      let stop = ge("stop");
+      if (stop.checked) {
+        stop.checked = false;
+        return;
+      }
+    }
+
+    let newPool = [];
+
+    newPool.push(best);
+    while (newPool.length < pool.length * (1 - POOL_REDUCTION) || newPool.length < ORIG_POOL_SIZE * MAX_POOL_REDUCTION) {
+      let parents = gen.resampleTwo(pool, data);
+      let p1 = parents[0].slice(); // Remember to slice / cpy, as we want to be able to re-sample original values
+      let p2 = parents[1].slice();
+
+      let children = gen.crossover(p1, p2);
+      let c1 = children[0];
+      let c2 = children[1];
+      if (Math.random() < PR_MUTATE) {
+        c1 = gen.mutate(c1, movingMutate);
+      }
+      if (Math.random() < PR_MUTATE) {
+        c2 = gen.mutate(c2, movingMutate);
+      }
+      newPool.push(c1, c2);
+    }
+    pool = newPool;
+
+    // Call loop again
+    if (--i) {
+      mainLoop(i, order, data, pool);
+    }
+  }, DELAY_MS);
+}
+},{"./genetics_poly":5,"./random":6,"./readDOM":7,"./ui":8}],4:[function(require,module,exports){
+Array.prototype.sum = function () {
+  let s = 0;
+  for (let i = 0; i < this.length; i++) {
+    s += this[i];
+  }
+  return s;
+};
+},{}],5:[function(require,module,exports){
+require("./extensions");
+const bs = require("binary-search");
+const random = require('./random');
+const PD = require("probability-distributions");
+
+function evalPolynomial(coefficients, x) {
+  // "a0 + a1*x + a2*x^2 .. an*x^n" , coefficients go from a0, a1 ... an
+  const terms = coefficients.length;
+  let sum = 0;
+  let p = 1;
+  for (let i = 0; i < terms; i++) {
+    sum += coefficients[i] * p;
+    p *= x; // Multiply p with x, so it continually is x^1 .. x^2 .. x^3 etc. Faster than Math.pow, not as accurate.
+    //sum += coefficients[i] * Math.pow(x, i);
+  }
+  return sum;
+}
+
+function seed(n, min, max) {
+  let seeds = [];
+  for (let i = 0; i < n; i++) {
+    seeds.push(random.getRandomArbitrary(min, max));
+  }
+  return seeds;
+}
+
+function fitness(coefficients, data) {
+  // data assumed to be [[x1, y1], [x2, y2] .. [xn, yn]]
+  let sumSqErr = 0;
+  for (let i = 0; i < data.length; i++) {
+    const xy = data[i];
+    sumSqErr += Math.pow(evalPolynomial(coefficients, xy[0]) - xy[1], 2);
+  }
+  return 1 / sumSqErr;
+}
+
+function mutate(coefficients, delta) {
+  //const toMutate = random.getRandomInt(0, coefficients.length);
+  // This beta distribution favors closer to only 1 mutation. 
+  // http://statisticsblog.com/probability-distributions/#beta
+  const toMutate = Math.floor(PD.rbeta(1, 1, 3)[0] * coefficients.length) + 1;
+  //console.log("toMutate", toMutate);
+
+  if (toMutate > 1) {
+    // Only mutate a coefficient once
+    let idxs = [];
+    for (let i = 0; i < toMutate; i++) {
+      let candidate = 0;
+      do {
+        candidate = random.getRandomInt(0, coefficients.length);
+      } while (idxs.indexOf(candidate) !== -1);
+      idxs.push(candidate);
+    }
+    for (let i = 0; i < idxs.length; i++) {
+      const drift = random.getRandomArbitrary(-delta, delta);
+      coefficients[idxs[i]] += drift;
+    }
+  } else {
+    const drift = random.getRandomArbitrary(-delta, delta);
+    const idx = random.getRandomInt(0, coefficients.length);
+    coefficients[idx] += drift;
+  }
+  return coefficients;
+}
+
+function lerp(a, b, p) {
+  return a + (b - a) * p;
+}
+
+function crossover2(mom, dad, rate = 0.1) {
+  let son = [];
+  let daughter = [];
+  for (let i = 0; i < mom.length; i++) {
+    son[i] = dad[i] * rate + mom[i] * (1 - rate);
+    daughter[i] = mom[i] * rate + dad[i] * (1 - rate);
+  }
+  return [daughter, son];
+}
+
+function crossover(mom, dad, maxCrossover = 0.1) {
+  let son = [].concat(dad);
+  let daughter = [].concat(mom);
+
+  for (let i = 0; i < son.length; i++) {
+    const p1 = random.getRandomArbitrary(0, maxCrossover);
+    const p2 = random.getRandomArbitrary(0, maxCrossover);
+    son[i] = lerp(dad[i], mom[i], p1);
+    daughter[i] = lerp(mom[i], dad[i], p2);
+  }
+  return [daughter, son];
+}
+
+function resampleTwo(coefficientSets, data) {
+  const n = coefficientSets.length;
+  const w = [];
+  for (let i = 0; i < n; i++) {
+    const fit = fitness(coefficientSets[i], data);
+    w.push(fit);
+  }
+
+  // Binary resampling
+  let wheel = [];
+  let sum = 0;
+  for (let i = 0; i < w.length; i++) {
+    sum += w[i];
+    wheel.push(sum);
+  }
+
+  let pair = [];
+  for (let i = 0; i < 2; i++) {
+    const r = random.getRandomArbitrary(0, sum);
+    let idx = bs(wheel, r, (a, b) => a - b);
+    if (idx < 0) {
+      idx = -idx - 1;
+    }
+    pair.push(coefficientSets[idx]);
+  }
+
+  return pair;
+}
+
+function resampleTwo2(coefficientSets, data) {
+  // E.g. a 2 order coefficientSets would look like [[9, 2, 3], [5, -1, 6] ...]
+  const n = coefficientSets.length;
+  const w = [];
+  for (let i = 0; i < n; i++) {
+    const fit = fitness(coefficientSets[i], data);
+    w.push(fit);
+  }
+
+  // Beta resampling
+  let pair = [];
+  let index = random.getRandomInt(0, n);
+  let beta = 0;
+  let mw = w.reduce((a, b) => Math.max(a, b));
+  for (let i = 0; i < 2; i++) {
+    beta += Math.random() * 2 * mw;
+    while (beta > w[index]) {
+      beta -= w[index];
+      index = (index + 1) % n;
+    }
+    pair.push(coefficientSets[index]);
+  }
+
+  return pair;
+}
+
+function findBest(pool, DATA) {
+  let best_fit = -Number.MAX_VALUE;
+  let best_idx = -1;
+  for (let i = 0; i < pool.length; i++) {
+    let fit = fitness(pool[i], DATA);
+    if (fit > best_fit) {
+      best_fit = fit;
+      best_idx = i;
+    }
+  }
+  return pool[best_idx];
+}
+
+function coefficientsToEquation(coefficients) {
+  let str = "";
+  for (let i = 0; i < coefficients.length; i++) {
+    if (i === 0) {
+      str += coefficients[i].toFixed(4);
+    } else {
+      if (coefficients[i] > 0) {
+        str += "+";
+      }
+      str += coefficients[i].toFixed(4) + "*x^" + i;
+    }
+  }
+  return str;
+}
+
+exports.evalPolynomial = evalPolynomial;
+exports.seed = seed;
+exports.fitness = fitness;
+exports.mutate = mutate;
+exports.crossover = crossover;
+exports.resampleTwo = resampleTwo;
+exports.findBest = findBest;
+exports.coefficientsToEquation = coefficientsToEquation;
+},{"./extensions":4,"./random":6,"binary-search":1,"probability-distributions":2}],6:[function(require,module,exports){
 function getRandomArbitrary(min, max) {
   return Math.random() * (max - min) + min;
 }
@@ -1420,7 +1421,7 @@ function draw(best, i) {
 
 exports.draw = draw;
 exports.activate = activate;
-},{"./genetics_poly":3,"./random":6,"./readDOM":7}],9:[function(require,module,exports){
+},{"./genetics_poly":5,"./random":6,"./readDOM":7}],9:[function(require,module,exports){
 var asn1 = exports;
 
 asn1.bignum = require('bn.js');
@@ -16062,7 +16063,8 @@ module.exports={
   ],
   "name": "elliptic",
   "optionalDependencies": {},
-  "readme": "ERROR: No README data found!",
+  "readme": "# Elliptic [![Build Status](https://secure.travis-ci.org/indutny/elliptic.png)](http://travis-ci.org/indutny/elliptic) [![Coverage Status](https://coveralls.io/repos/indutny/elliptic/badge.svg?branch=master&service=github)](https://coveralls.io/github/indutny/elliptic?branch=master) [![Code Climate](https://codeclimate.com/github/indutny/elliptic/badges/gpa.svg)](https://codeclimate.com/github/indutny/elliptic)\n\n[![Saucelabs Test Status](https://saucelabs.com/browser-matrix/gh-indutny-elliptic.svg)](https://saucelabs.com/u/gh-indutny-elliptic)\n\nFast elliptic-curve cryptography in a plain javascript implementation.\n\nNOTE: Please take a look at http://safecurves.cr.yp.to/ before choosing a curve\nfor your cryptography operations.\n\n## Incentive\n\nECC is much slower than regular RSA cryptography, the JS implementations are\neven more slower.\n\n## Benchmarks\n\n```bash\n$ node benchmarks/index.js\nBenchmarking: sign\nelliptic#sign x 262 ops/sec ±0.51% (177 runs sampled)\neccjs#sign x 55.91 ops/sec ±0.90% (144 runs sampled)\n------------------------\nFastest is elliptic#sign\n========================\nBenchmarking: verify\nelliptic#verify x 113 ops/sec ±0.50% (166 runs sampled)\neccjs#verify x 48.56 ops/sec ±0.36% (125 runs sampled)\n------------------------\nFastest is elliptic#verify\n========================\nBenchmarking: gen\nelliptic#gen x 294 ops/sec ±0.43% (176 runs sampled)\neccjs#gen x 62.25 ops/sec ±0.63% (129 runs sampled)\n------------------------\nFastest is elliptic#gen\n========================\nBenchmarking: ecdh\nelliptic#ecdh x 136 ops/sec ±0.85% (156 runs sampled)\n------------------------\nFastest is elliptic#ecdh\n========================\n```\n\n## API\n\n### ECDSA\n\n```javascript\nvar EC = require('elliptic').ec;\n\n// Create and initialize EC context\n// (better do it once and reuse it)\nvar ec = new EC('secp256k1');\n\n// Generate keys\nvar key = ec.genKeyPair();\n\n// Sign message (must be an array, or it'll be treated as a hex sequence)\nvar msg = [ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 ];\nvar signature = key.sign(msg);\n\n// Export DER encoded signature in Array\nvar derSign = signature.toDER();\n\n// Verify signature\nconsole.log(key.verify(msg, derSign));\n\n// CHECK WITH NO PRIVATE KEY\n\n// Public key as '04 + x + y'\nvar pub = '04bb1fa3...';\n\n// Signature MUST be either:\n// 1) hex-string of DER-encoded signature; or\n// 2) DER-encoded signature as buffer; or\n// 3) object with two hex-string properties (r and s)\n\nvar signature = 'b102ac...'; // case 1\nvar signature = new Buffer('...'); // case 2\nvar signature = { r: 'b1fc...', s: '9c42...' }; // case 3\n\n// Import public key\nvar key = ec.keyFromPublic(pub, 'hex');\n\n// Verify signature\nconsole.log(key.verify(msg, signature));\n```\n\n### EdDSA\n\n```javascript\nvar EdDSA = require('elliptic').eddsa;\n\n// Create and initialize EdDSA context\n// (better do it once and reuse it)\nvar ec = new EdDSA('ed25519');\n\n// Create key pair from secret\nvar key = ec.keyFromSecret('693e3c...'); // hex string, array or Buffer\n\n// Sign message (must be an array, or it'll be treated as a hex sequence)\nvar msg = [ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 ];\nvar signature = key.sign(msg).toHex();\n\n// Verify signature\nconsole.log(key.verify(msg, signature));\n\n// CHECK WITH NO PRIVATE KEY\n\n// Import public key\nvar pub = '0a1af638...';\nvar key = ec.keyFromPublic(pub, 'hex');\n\n// Verify signature\nvar signature = '70bed1...';\nconsole.log(key.verify(msg, signature));\n```\n\n### ECDH\n\n```javascript\nvar EC = require('elliptic').ec;\nvar ec = new EC('curve25519');\n\n// Generate keys\nvar key1 = ec.genKeyPair();\nvar key2 = ec.genKeyPair();\n\nvar shared1 = key1.derive(key2.getPublic());\nvar shared2 = key2.derive(key1.getPublic());\n\nconsole.log('Both shared secrets are BN instances');\nconsole.log(shared1.toString(16));\nconsole.log(shared2.toString(16));\n```\n\nthree and more members:\n```javascript\nvar EC = require('elliptic').ec;\nvar ec = new EC('curve25519');\n\nvar A = ec.genKeyPair();\nvar B = ec.genKeyPair();\nvar C = ec.genKeyPair();\n\nvar AB = A.getPublic().mul(B.getPrivate())\nvar BC = B.getPublic().mul(C.getPrivate())\nvar CA = C.getPublic().mul(A.getPrivate())\n\nvar ABC = AB.mul(C.getPrivate())\nvar BCA = BC.mul(A.getPrivate())\nvar CAB = CA.mul(B.getPrivate())\n\nconsole.log(ABC.getX().toString(16))\nconsole.log(BCA.getX().toString(16))\nconsole.log(CAB.getX().toString(16))\n```\n\nNOTE: `.derive()` returns a [BN][1] instance.\n\n## Supported curves\n\nElliptic.js support following curve types:\n\n* Short Weierstrass\n* Montgomery\n* Edwards\n* Twisted Edwards\n\nFollowing curve 'presets' are embedded into the library:\n\n* `secp256k1`\n* `p192`\n* `p224`\n* `p256`\n* `p384`\n* `p521`\n* `curve25519`\n* `ed25519`\n\nNOTE: That `curve25519` could not be used for ECDSA, use `ed25519` instead.\n\n### Implementation details\n\nECDSA is using deterministic `k` value generation as per [RFC6979][0]. Most of\nthe curve operations are performed on non-affine coordinates (either projective\nor extended), various windowing techniques are used for different cases.\n\nAll operations are performed in reduction context using [bn.js][1], hashing is\nprovided by [hash.js][2]\n\n### Related projects\n\n* [eccrypto][3]: isomorphic implementation of ECDSA, ECDH and ECIES for both\n  browserify and node (uses `elliptic` for browser and [secp256k1-node][4] for\n  node)\n\n#### LICENSE\n\nThis software is licensed under the MIT License.\n\nCopyright Fedor Indutny, 2014.\n\nPermission is hereby granted, free of charge, to any person obtaining a\ncopy of this software and associated documentation files (the\n\"Software\"), to deal in the Software without restriction, including\nwithout limitation the rights to use, copy, modify, merge, publish,\ndistribute, sublicense, and/or sell copies of the Software, and to permit\npersons to whom the Software is furnished to do so, subject to the\nfollowing conditions:\n\nThe above copyright notice and this permission notice shall be included\nin all copies or substantial portions of the Software.\n\nTHE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS\nOR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF\nMERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN\nNO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,\nDAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR\nOTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE\nUSE OR OTHER DEALINGS IN THE SOFTWARE.\n\n[0]: http://tools.ietf.org/html/rfc6979\n[1]: https://github.com/indutny/bn.js\n[2]: https://github.com/indutny/hash.js\n[3]: https://github.com/bitchan/eccrypto\n[4]: https://github.com/wanderer/secp256k1-node\n",
+  "readmeFilename": "README.md",
   "repository": {
     "type": "git",
     "url": "git+ssh://git@github.com/indutny/elliptic.git"
@@ -22755,4 +22757,4 @@ exports.createContext = Script.createContext = function (context) {
     return copy;
 };
 
-},{"indexof":99}]},{},[1]);
+},{"indexof":99}]},{},[3]);
