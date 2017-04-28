@@ -27,12 +27,13 @@ function initLoop({ order: N, poolsize: PS, minguess: min, maxguess: max }) {
 function mainLoop(i, order, data, pool) {
   setTimeout(() => {
     let best = gen.findBest(pool, data).slice();
-    const movingMutate = Math.max(0.1, MUTATE_INTENSITY/gen.fitness(best, data));
+    let bestFitness = gen.fitness(best, data);
+    const movingMutate = Math.max(0.1, MUTATE_INTENSITY/bestFitness);
 
     if (i % gin("updrate") === 0) {
       console.log("cat2");
       console.log("movingMutate", movingMutate);
-      ui.draw(best, i);
+      ui.draw(best, i, 1/bestFitness);  // 1/bestFitness is the error squared
     }
     if (i % 2 === 0) {
       let stop = ge("stop");

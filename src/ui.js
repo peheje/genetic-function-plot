@@ -53,14 +53,14 @@ function activate(initLoop, mainLoop) {
   }
 }
 
-function draw(best, i) {
+function draw(best, i, errSq) {
   if (typeof document == "undefined") {
     return;
   }
   let eq = gen.coefficientsToEquation(best);
   si("eq1", eq);
-
   si("counter", i);
+  si("sqerr", errSq);
 
   try {
     let instance = functionPlot({
