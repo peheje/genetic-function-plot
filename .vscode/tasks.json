@@ -3,7 +3,8 @@
     // for the documentation about the tasks.json format
     "version": "0.1.0",
     "command": "node",
-    "isShellCommand": true,
+    "isShellCommand": false,
     "args": ["noderunner.js"],
-    "showOutput": "always"
+    "showOutput": "always",
+    "isBackground": true
 }

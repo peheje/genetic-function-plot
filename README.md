@@ -12,6 +12,4 @@ Finds polynomial coefficients, using genetic algorithm, for an arbitrary order f
 
 ## To edit:
 
-1. npm install -g gulp
-2. npm install -g browserify
-3. Run task "watch" e.g. in Code -> Run Tasks -> Watch
+3. Run task "node" e.g. in Code -> Run Tasks -> node

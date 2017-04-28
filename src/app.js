@@ -30,7 +30,7 @@ function mainLoop(i, order, data, pool) {
     const movingMutate = Math.max(0.1, MUTATE_INTENSITY/gen.fitness(best, data));
 
     if (i % gin("updrate") === 0) {
-      console.log("hue9");
+      console.log("cat2");
       console.log("movingMutate", movingMutate);
       ui.draw(best, i);
     }
