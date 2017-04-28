@@ -5,7 +5,7 @@ let run = false;
 
 gulp.task("watch", () => {
   console.log("watching ..");
-  gulp.watch("**/*.js", ["browserify"]);
+  gulp.watch("**/*.js", { interval: 1000 }, ["browserify"]);
 });
 
 gulp.task("browserify", () => {
