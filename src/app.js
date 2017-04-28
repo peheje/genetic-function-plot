@@ -7,7 +7,7 @@ const random = require('./random');
 
 const PR_MUTATE = 0.5;         // Chance one coefficient-set genetics_poly.mutates 1 of its coefficients
 const MUTATE_INTENSITY = 0.2;        // How much mutation allowed in either direction, but it is decreased with best error
-const MAX_CROSSOVER = 0.2;      // In crossing over, how much potential mix is a son of also his mother.  
+const MAX_CROSSOVER = 0.5;      // In crossing over, how much potential mix is a son of also his mother.  
 const POOL_REDUCTION = 0.005;
 const MAX_POOL_REDUCTION = 0.5;
 const DELAY_MS = 0;
