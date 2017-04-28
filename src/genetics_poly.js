@@ -38,7 +38,7 @@ function mutate(coefficients, delta) {
   //const toMutate = random.getRandomInt(0, coefficients.length);
   // This beta distribution favors closer to only 1 mutation. 
   // http://statisticsblog.com/probability-distributions/#beta
-  const toMutate = Math.floor(PD.rbeta(1, 1, 3)[0] * coefficients.length) + 1;
+  const toMutate = Math.floor(PD.rbeta(1, 0.6, 3)[0] * coefficients.length) + 1;
   //console.log("toMutate", toMutate);
 
   if (toMutate > 1) {
