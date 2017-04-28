@@ -1026,9 +1026,9 @@ const gen = require('./genetics_poly');
 const random = require('./random');
 
 const PR_MUTATE = 0.5;         // Chance one coefficient-set genetics_poly.mutates 1 of its coefficients
-const MUTATE_INTENSITY = 0.2;        // How much mutation allowed in either direction, but it is decreased with best error
-const MAX_CROSSOVER = 0.5;      // In crossing over, how much potential mix is a son of also his mother.  
-const POOL_REDUCTION = 0.005;
+const MUTATE_INTENSITY = 0.4;        // How much mutation allowed in either direction, but it is decreased with best error
+const MAX_CROSSOVER = 0.3;      // In crossing over, how much potential mix is a son of also his mother.  
+const POOL_REDUCTION = 0.001;
 const MAX_POOL_REDUCTION = 0.5;
 const DELAY_MS = 0;
 
@@ -1139,7 +1139,7 @@ function mutate(coefficients, delta) {
   //const toMutate = random.getRandomInt(0, coefficients.length);
   // This beta distribution favors closer to only 1 mutation. 
   // http://statisticsblog.com/probability-distributions/#beta
-  const toMutate = Math.floor(PD.rbeta(1, 0.6, 3)[0] * coefficients.length) + 1;
+  const toMutate = Math.floor(PD.rbeta(1, 0.8, 3)[0] * coefficients.length) + 1;
   //console.log("toMutate", toMutate);
 
   if (toMutate > 1) {
