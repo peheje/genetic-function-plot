@@ -60,7 +60,7 @@ function draw(best, i, errSq) {
   let eq = gen.coefficientsToEquation(best);
   si("eq1", eq);
   si("counter", i);
-  si("sqerr", errSq);
+  si("sqerr", errSq-1);
 
   try {
     let instance = functionPlot({
@@ -102,7 +102,7 @@ function draw(best, i, errSq) {
   }
   catch (err) {
     console.log(err);
-    alert(err);
+    //alert(err);
   }
 }
 

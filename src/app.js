@@ -17,6 +17,7 @@ console.log("ORIG_POOL_SIZE", ORIG_POOL_SIZE);
 ui.activate(initLoop, mainLoop);
 
 function initLoop({ order: N, poolsize: PS, minguess: min, maxguess: max }) {
+  console.time("run");
   let pool = [];
   for (let i = 0; i < PS; i++) {
     pool.push(gen.seed(N + 1, min, max));
@@ -31,8 +32,7 @@ function mainLoop(i, order, data, pool) {
     const movingMutate = Math.max(0.1, MUTATE_INTENSITY/bestFitness);
 
     if (i % gin("updrate") === 0) {
-      console.log("cat2");
-      console.log("movingMutate", movingMutate);
+      //console.log("movingMutate", movingMutate);
       ui.draw(best, i, 1/bestFitness);  // 1/bestFitness is the error squared
     }
     if (i % 2 === 0) {
@@ -48,8 +48,8 @@ function mainLoop(i, order, data, pool) {
     newPool.push(best);
     while (newPool.length < pool.length * (1 - POOL_REDUCTION) || newPool.length < ORIG_POOL_SIZE * MAX_POOL_REDUCTION) {
       let parents = gen.resampleTwo(pool, data);
-      let p1 = parents[0].slice(); // Remember to slice / cpy, as we want to be able to re-sample original values
-      let p2 = parents[1].slice();
+      let p1 = parents[0];
+      let p2 = parents[1];
 
       let children = gen.crossover(p1, p2, MAX_CROSSOVER);
       let c1 = children[0];
@@ -67,6 +67,8 @@ function mainLoop(i, order, data, pool) {
     // Call loop again
     if (--i) {
       mainLoop(i, order, data, pool);
+    } else {
+      console.timeEnd("run");
     }
   }, DELAY_MS);
 }

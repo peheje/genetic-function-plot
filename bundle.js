@@ -1037,6 +1037,7 @@ console.log("ORIG_POOL_SIZE", ORIG_POOL_SIZE);
 ui.activate(initLoop, mainLoop);
 
 function initLoop({ order: N, poolsize: PS, minguess: min, maxguess: max }) {
+  console.time("run");
   let pool = [];
   for (let i = 0; i < PS; i++) {
     pool.push(gen.seed(N + 1, min, max));
@@ -1051,8 +1052,7 @@ function mainLoop(i, order, data, pool) {
     const movingMutate = Math.max(0.1, MUTATE_INTENSITY/bestFitness);
 
     if (i % gin("updrate") === 0) {
-      console.log("cat2");
-      console.log("movingMutate", movingMutate);
+      //console.log("movingMutate", movingMutate);
       ui.draw(best, i, 1/bestFitness);  // 1/bestFitness is the error squared
     }
     if (i % 2 === 0) {
@@ -1068,8 +1068,8 @@ function mainLoop(i, order, data, pool) {
     newPool.push(best);
     while (newPool.length < pool.length * (1 - POOL_REDUCTION) || newPool.length < ORIG_POOL_SIZE * MAX_POOL_REDUCTION) {
       let parents = gen.resampleTwo(pool, data);
-      let p1 = parents[0].slice(); // Remember to slice / cpy, as we want to be able to re-sample original values
-      let p2 = parents[1].slice();
+      let p1 = parents[0];
+      let p2 = parents[1];
 
       let children = gen.crossover(p1, p2, MAX_CROSSOVER);
       let c1 = children[0];
@@ -1087,6 +1087,8 @@ function mainLoop(i, order, data, pool) {
     // Call loop again
     if (--i) {
       mainLoop(i, order, data, pool);
+    } else {
+      console.timeEnd("run");
     }
   }, DELAY_MS);
 }
@@ -1127,7 +1129,7 @@ function seed(n, min, max) {
 
 function fitness(coefficients, data) {
   // data assumed to be [[x1, y1], [x2, y2] .. [xn, yn]]
-  let sumSqErr = 0;
+  let sumSqErr = 1;
   for (let i = 0; i < data.length; i++) {
     const xy = data[i];
     sumSqErr += Math.pow(evalPolynomial(coefficients, xy[0]) - xy[1], 2);
@@ -1191,12 +1193,11 @@ function crossover(mom, dad, maxCrossover = 0.1) {
   return [daughter, son];
 }
 
-function resampleTwo(coefficientSets, data) {
-  const n = coefficientSets.length;
+// Remember to slice / cpy, as we want to be able to re-sample original values
+function resampleTwo(sets, data) {
   const w = [];
-  for (let i = 0; i < n; i++) {
-    const fit = fitness(coefficientSets[i], data);
-    w.push(fit);
+  for (let i = 0; i < sets.length; i++) {
+    w.push(fitness(sets[i], data));
   }
 
   // Binary resampling
@@ -1210,22 +1211,24 @@ function resampleTwo(coefficientSets, data) {
   let pair = [];
   for (let i = 0; i < 2; i++) {
     const r = random.getRandomArbitrary(0, sum);
-    let idx = bs(wheel, r, (a, b) => a - b);
+    let idx = bs(wheel, r, (a, b) => a - b); // https://github.com/darkskyapp/binary-search
     if (idx < 0) {
       idx = -idx - 1;
     }
-    pair.push(coefficientSets[idx]);
+    let chosen = sets.slice(idx, idx+1)[0];
+    pair.push(chosen);
   }
 
   return pair;
 }
 
-function resampleTwo2(coefficientSets, data) {
+// Remember to slice / cpy, as we want to be able to re-sample original values
+function resampleTwo2(sets, data) {
   // E.g. a 2 order coefficientSets would look like [[9, 2, 3], [5, -1, 6] ...]
-  const n = coefficientSets.length;
+  const n = sets.length;
   const w = [];
   for (let i = 0; i < n; i++) {
-    const fit = fitness(coefficientSets[i], data);
+    const fit = fitness(sets[i], data);
     w.push(fit);
   }
 
@@ -1233,14 +1236,16 @@ function resampleTwo2(coefficientSets, data) {
   let pair = [];
   let index = random.getRandomInt(0, n);
   let beta = 0;
-  let mw = w.reduce((a, b) => Math.max(a, b));
+  const mw = w.reduce((a, b) => Math.max(a, b));
   for (let i = 0; i < 2; i++) {
     beta += Math.random() * 2 * mw;
     while (beta > w[index]) {
       beta -= w[index];
       index = (index + 1) % n;
     }
-    pair.push(coefficientSets[index]);
+    let chosen = sets.slice(index, index+1)[0];
+    pair.push(chosen);
+
   }
 
   return pair;
@@ -1404,7 +1409,7 @@ function draw(best, i, errSq) {
   let eq = gen.coefficientsToEquation(best);
   si("eq1", eq);
   si("counter", i);
-  si("sqerr", errSq);
+  si("sqerr", errSq-1);
 
   try {
     let instance = functionPlot({
@@ -1446,7 +1451,7 @@ function draw(best, i, errSq) {
   }
   catch (err) {
     console.log(err);
-    alert(err);
+    //alert(err);
   }
 }
 

@@ -26,7 +26,7 @@ function seed(n, min, max) {
 
 function fitness(coefficients, data) {
   // data assumed to be [[x1, y1], [x2, y2] .. [xn, yn]]
-  let sumSqErr = 0;
+  let sumSqErr = 1;
   for (let i = 0; i < data.length; i++) {
     const xy = data[i];
     sumSqErr += Math.pow(evalPolynomial(coefficients, xy[0]) - xy[1], 2);
@@ -90,12 +90,11 @@ function crossover(mom, dad, maxCrossover = 0.1) {
   return [daughter, son];
 }
 
-function resampleTwo(coefficientSets, data) {
-  const n = coefficientSets.length;
+// Remember to slice / cpy, as we want to be able to re-sample original values
+function resampleTwo(sets, data) {
   const w = [];
-  for (let i = 0; i < n; i++) {
-    const fit = fitness(coefficientSets[i], data);
-    w.push(fit);
+  for (let i = 0; i < sets.length; i++) {
+    w.push(fitness(sets[i], data));
   }
 
   // Binary resampling
@@ -109,22 +108,24 @@ function resampleTwo(coefficientSets, data) {
   let pair = [];
   for (let i = 0; i < 2; i++) {
     const r = random.getRandomArbitrary(0, sum);
-    let idx = bs(wheel, r, (a, b) => a - b);
+    let idx = bs(wheel, r, (a, b) => a - b); // https://github.com/darkskyapp/binary-search
     if (idx < 0) {
       idx = -idx - 1;
     }
-    pair.push(coefficientSets[idx]);
+    let chosen = sets.slice(idx, idx+1)[0];
+    pair.push(chosen);
   }
 
   return pair;
 }
 
-function resampleTwo2(coefficientSets, data) {
+// Remember to slice / cpy, as we want to be able to re-sample original values
+function resampleTwo2(sets, data) {
   // E.g. a 2 order coefficientSets would look like [[9, 2, 3], [5, -1, 6] ...]
-  const n = coefficientSets.length;
+  const n = sets.length;
   const w = [];
   for (let i = 0; i < n; i++) {
-    const fit = fitness(coefficientSets[i], data);
+    const fit = fitness(sets[i], data);
     w.push(fit);
   }
 
@@ -132,14 +133,16 @@ function resampleTwo2(coefficientSets, data) {
   let pair = [];
   let index = random.getRandomInt(0, n);
   let beta = 0;
-  let mw = w.reduce((a, b) => Math.max(a, b));
+  const mw = w.reduce((a, b) => Math.max(a, b));
   for (let i = 0; i < 2; i++) {
     beta += Math.random() * 2 * mw;
     while (beta > w[index]) {
       beta -= w[index];
       index = (index + 1) % n;
     }
-    pair.push(coefficientSets[index]);
+    let chosen = sets.slice(index, index+1)[0];
+    pair.push(chosen);
+
   }
 
   return pair;
