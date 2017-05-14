@@ -26,12 +26,21 @@ function seed(n, min, max) {
 
 function fitness(coefficients, data) {
   // data assumed to be [[x1, y1], [x2, y2] .. [xn, yn]]
-  let sumSqErr = 1;
+  let sum = 1;
   for (let i = 0; i < data.length; i++) {
     const xy = data[i];
-    sumSqErr += Math.pow(evalPolynomial(coefficients, xy[0]) - xy[1], 2);
+    sum += Math.pow(evalPolynomial(coefficients, xy[0]) - xy[1], 2);
   }
-  return 1 / sumSqErr;
+
+  // Regularization
+  /*
+  const lambda = 0.9;
+  for (let i = 0; i < coefficients.length; i++) {
+    sum += lambda*coefficients[i]*coefficients[i];
+  }
+  */
+
+  return 1 / sum;
 }
 
 function mutate(coefficients, delta) {
