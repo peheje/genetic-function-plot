@@ -4,7 +4,6 @@
   "description": "genetic graph drawer",
   "main": "app.js",
   "dependencies": {
-    "binary-search": "^1.3.2",
     "function-plot": "^1.17.3",
     "probability-distributions": "^0.9.1"
   },

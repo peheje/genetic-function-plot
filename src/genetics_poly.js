@@ -1,7 +1,23 @@
 require("./extensions");
-const bs = require("binary-search");
 const random = require('./random');
 const PD = require("probability-distributions");
+
+function binarySearch(ar, el, compare_fn) {
+  var m = 0;
+  var n = ar.length - 1;
+  while (m <= n) {
+    var k = (n + m) >> 1;
+    var cmp = compare_fn(el, ar[k]);
+    if (cmp > 0) {
+      m = k + 1;
+    } else if (cmp < 0) {
+      n = k - 1;
+    } else {
+      return k;
+    }
+  }
+  return -m - 1;
+}
 
 function evalPolynomial(coefficients, x) {
   // "a0 + a1*x + a2*x^2 .. an*x^n" , coefficients go from a0, a1 ... an
@@ -117,11 +133,12 @@ function resampleTwo(sets, data) {
   let pair = [];
   for (let i = 0; i < 2; i++) {
     const r = random.getRandomArbitrary(0, sum);
-    let idx = bs(wheel, r, (a, b) => a - b); // https://github.com/darkskyapp/binary-search
+    let idx = binarySearch(wheel, r, (a, b) => a - b);
+
     if (idx < 0) {
       idx = -idx - 1;
     }
-    let chosen = sets.slice(idx, idx+1)[0];
+    let chosen = sets.slice(idx, idx + 1)[0];
     pair.push(chosen);
   }
 
@@ -149,7 +166,7 @@ function resampleTwo2(sets, data) {
       beta -= w[index];
       index = (index + 1) % n;
     }
-    let chosen = sets.slice(index, index+1)[0];
+    let chosen = sets.slice(index, index + 1)[0];
     pair.push(chosen);
 
   }
